@@ -3,7 +3,7 @@ require('@nomiclabs/hardhat-web3')
 
 require('dotenv').config()
 
-const { PRIVATE_KEY } = process.env
+const { PRIVATE_KEY, INFURA_API_KEY } = process.env
 
 const networks = {
   hardhat: {},
@@ -16,7 +16,7 @@ const networks = {
     accounts: [PRIVATE_KEY]
   },
   goerli: {
-    url: 'https://rpc.ankr.com/eth_goerli',
+    url: `https://goerli.infura.io/v3/${INFURA_API_KEY}`,
     accounts: [PRIVATE_KEY]
   }
 }
