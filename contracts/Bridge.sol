@@ -45,10 +45,13 @@ contract Bridge is ReentrancyGuard {
         AddSupportedWrappedToken,
         RemoveSupportedWrappedToken,
         SetPause,
-        CompleteTransfer
+        CompleteTransfer,
+        SetFeeWallet
     }
 
     uint256 public nonce = 1;
+    address public feeTo;
+    uint256 public feeAmount;
 
     address[] public validators;
     mapping(address => bool) public isValidator;
@@ -152,6 +155,20 @@ contract Bridge is ReentrancyGuard {
             );
             uint256 balanceBefore = abi.decode(queriedBalanceBefore, (uint256));
 
+            // charge fee to transfer
+            address _feeTo = feeTo;
+            if(_feeTo != address(0)) {
+                uint256 fee = feeAmount * amount / 10000;
+                // transfer fee
+                SafeERC20.safeTransferFrom(
+                    IERC20(token),
+                    msg.sender,
+                    _feeTo,
+                    fee
+                );
+                amount = amount - fee;
+            }
+
             // transfer tokens
             SafeERC20.safeTransferFrom(
                 IERC20(token),
@@ -247,6 +264,15 @@ contract Bridge is ReentrancyGuard {
             // mint wrapped asset
             WrappedToken(token).mint(recipient, value);
         } else {
+            // charge fee to transfer
+            address _feeTo = feeTo;
+            if(_feeTo != address(0)) {
+                uint256 fee = feeAmount * transferAmount / 10000;
+                // transfer fee
+                SafeERC20.safeTransfer(IERC20(token), _feeTo, fee);
+                transferAmount = transferAmount - fee;
+            }
+            // transfer tokens
             SafeERC20.safeTransfer(IERC20(token), recipient, transferAmount);
         }
 
@@ -496,6 +522,19 @@ contract Bridge is ReentrancyGuard {
         return amount;
     }
 
+    function setFeeTo(bytes[] memory signatures, address _feeTo, uint256 _feeAmount, uint expiration) external {
+        require(
+            expiration >= block.timestamp * 1000,
+            "expired signatures"
+        );
+        bytes32 messageHash = getEthereumMessageHash(
+            keccak256(abi.encodePacked(uint(ActionId.SetFeeWallet), _feeTo, _feeAmount, expiration))
+        );
+        verifySignatures(signatures, messageHash);
+        feeTo = _feeTo;
+        feeAmount = _feeAmount; // 10000 == 100%
+    }
+
     function removeSupportedTokenByIndex(uint256 index) internal {
         require(index < supportedTokens.length, "index out of bound");
 
@@ -534,6 +573,15 @@ contract Bridge is ReentrancyGuard {
     function getValidatorsLength() public view returns (uint256) {
         return validators.length;
     }
+
+    function getFeeAmount() public view returns (uint256) {
+        return feeAmount;
+    }
+
+    function getFeeAddress() public view returns (address) {
+        return feeTo;
+    }
+
 
     /**
      * @dev Modifier to make a function callable only when the contract is not paused.
