@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-
+    environment: CI
     runs-on: ${{ matrix.platform }}
     name: "${{ matrix.platform }} ${{ matrix.nodeversion }}"
 
