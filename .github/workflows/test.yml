@@ -15,7 +15,7 @@ jobs:
     strategy:
       matrix:
         platform: [ubuntu-latest]
-        node-version: [16.x]
+        node-version: [18.x]
 
     steps:
       - uses: actions/checkout@v2
@@ -26,4 +26,4 @@ jobs:
       - name: Install dependencies
         run: yarn --frozen-lockfile
       - name: Run test
-        run: yarn test
+        run: PRIVATE_KEY=${{secrets.PRIVATE_KEY}} yarn test

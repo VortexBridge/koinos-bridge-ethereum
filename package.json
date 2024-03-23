@@ -2,7 +2,8 @@
   "name": "koinos-bridge-ethereum",
   "version": "1.0.0",
   "main": "index.js",
-  "repository": "https://github.com/roaminroe/koinos-bridge-ethereum.git",
+  "author": "Roamin Ro",
+  "repository": "https://github.com/roaminro/koinos-bridge-ethereum.git",
   "license": "MIT",
   "private": false,
   "scripts": {
@@ -35,9 +36,8 @@
     "ethers": "^5.0.0",
     "hardhat": "^2.9.3",
     "i": "^0.3.7",
-    "npm": "^8.6.0"
-  },
-  "dependencies": {
+    "npm": "^8.6.0",
     "dotenv": "^16.0.3"
-  }
+  },
+  "dependencies": {}
 }

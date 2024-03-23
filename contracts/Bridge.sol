@@ -1,5 +1,5 @@
 // contracts/Bridge.sol
-// SPDX-License-Identifier: Apache 2
+// SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.0;
 
