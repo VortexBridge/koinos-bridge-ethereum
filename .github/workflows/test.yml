@@ -28,4 +28,4 @@ jobs:
       - name: Run test
         env:
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
-        run: PRIVATE_KEY=${{ env.PRIVATE_KEY }} yarn test
+        run: yarn test
