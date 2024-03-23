@@ -26,4 +26,6 @@ jobs:
       - name: Install dependencies
         run: yarn --frozen-lockfile
       - name: Run test
-        run: PRIVATE_KEY=${{secrets.PRIVATE_KEY}} yarn test
+        env:
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+        run: PRIVATE_KEY=${{ env.PRIVATE_KEY }} yarn test
