@@ -14,7 +14,8 @@ contract Bridge is ReentrancyGuard {
         address token,
         uint256 amount,
         string recipient,
-        uint256 blocktime
+        uint256 blocktime,
+        uint32 chain
     );
 
     event TransferCompletedEvent(
@@ -49,6 +50,7 @@ contract Bridge is ReentrancyGuard {
         SetFeeWallet
     }
 
+    uint32 public chainId;
     uint256 public nonce = 1;
     address public feeTo;
     uint256 public feeAmount;
@@ -72,7 +74,7 @@ contract Bridge is ReentrancyGuard {
     // Address of the official WETH contract
     address public WETHAddress;
 
-    constructor(address[] memory initialValidators, address WETHAddress_) {
+    constructor(address[] memory initialValidators, address WETHAddress_, uint32 _chainId) {
         require(initialValidators.length > 0, "Validators required");
 
         for (uint256 i = 0; i < initialValidators.length; i++) {
@@ -87,13 +89,14 @@ contract Bridge is ReentrancyGuard {
 
         WETHAddress = WETHAddress_;
         isSupportedToken[WETHAddress] = true;
+        chainId = _chainId;
     }
 
     function RequestNewSignatures(bytes memory txId) external whenNotPaused {
         emit RequestNewSignaturesEvent(txId, block.timestamp * 1000);
     }
 
-    function wrapAndTransferETH(string memory recipient)
+    function wrapAndTransferETH(string memory recipient, uint32 toChain)
         external
         payable
         whenNotPaused
@@ -118,12 +121,13 @@ contract Bridge is ReentrancyGuard {
         // deposit into WETH
         WETH(WETHAddress).deposit{value: amount - dust}();
 
-        emit TokensLockedEvent(msg.sender, WETHAddress, normalizedAmount, recipient, block.timestamp * 1000);
+        emit TokensLockedEvent(msg.sender, WETHAddress, normalizedAmount, recipient, block.timestamp * 1000, toChain);
     }
 
     function transferTokens(
         address token,
         uint256 amount,
+        uint32 toChain,
         string memory recipient
     ) external whenNotPaused nonReentrant {
         require(
@@ -195,7 +199,7 @@ contract Bridge is ReentrancyGuard {
             "normalizedAmount amount must be greater than 0"
         );
 
-        emit TokensLockedEvent(msg.sender, token, normalizedAmount, recipient, block.timestamp * 1000);
+        emit TokensLockedEvent(msg.sender, token, normalizedAmount, recipient, block.timestamp * 1000, toChain);
     }
 
     function completeTransfer(
@@ -227,7 +231,8 @@ contract Bridge is ReentrancyGuard {
                     recipient,
                     value,
                     address(this),
-                    expiration
+                    expiration,
+                    chainId
                 )
             )
         );
@@ -290,7 +295,7 @@ contract Bridge is ReentrancyGuard {
         require(!isSupportedToken[token], "Token already exists");
 
         bytes32 messageHash = getEthereumMessageHash(
-            keccak256(abi.encodePacked(uint(ActionId.AddSupportedToken), token, nonce, address(this), expiration))
+            keccak256(abi.encodePacked(uint(ActionId.AddSupportedToken), token, nonce, address(this), expiration, chainId))
         );
 
         verifySignatures(signatures, messageHash);
@@ -314,7 +319,7 @@ contract Bridge is ReentrancyGuard {
         require(isSupportedToken[token], "Token does not exist");
 
         bytes32 messageHash = getEthereumMessageHash(
-            keccak256(abi.encodePacked(uint(ActionId.RemoveSupportedToken), token, nonce, address(this), expiration))
+            keccak256(abi.encodePacked(uint(ActionId.RemoveSupportedToken), token, nonce, address(this), expiration, chainId))
         );
 
         verifySignatures(signatures, messageHash);
@@ -339,7 +344,7 @@ contract Bridge is ReentrancyGuard {
         require(!isSupportedWrappedToken[token], "Token already exists");
 
         bytes32 messageHash = getEthereumMessageHash(
-            keccak256(abi.encodePacked(uint(ActionId.AddSupportedWrappedToken), token, nonce, address(this), expiration))
+            keccak256(abi.encodePacked(uint(ActionId.AddSupportedWrappedToken), token, nonce, address(this), expiration, chainId))
         );
 
         verifySignatures(signatures, messageHash);
@@ -364,7 +369,7 @@ contract Bridge is ReentrancyGuard {
         require(isSupportedWrappedToken[token], "Token does not exist");
 
         bytes32 messageHash = getEthereumMessageHash(
-            keccak256(abi.encodePacked(uint(ActionId.RemoveSupportedWrappedToken), token, nonce, address(this), expiration))
+            keccak256(abi.encodePacked(uint(ActionId.RemoveSupportedWrappedToken), token, nonce, address(this), expiration, chainId))
         );
 
         verifySignatures(signatures, messageHash);
@@ -390,7 +395,7 @@ contract Bridge is ReentrancyGuard {
         require(!isValidator[validator], "Validator already exists");
 
         bytes32 messageHash = getEthereumMessageHash(
-            keccak256(abi.encodePacked(uint(ActionId.AddValidator), validator, nonce, address(this), expiration))
+            keccak256(abi.encodePacked(uint(ActionId.AddValidator), validator, nonce, address(this), expiration, chainId))
         );
 
         verifySignatures(signatures, messageHash);
@@ -413,7 +418,7 @@ contract Bridge is ReentrancyGuard {
         require(isValidator[validator], "Validator does not exist");
 
         bytes32 hash = getEthereumMessageHash(
-            keccak256(abi.encodePacked(uint(ActionId.RemoveValidator), validator, nonce, address(this), expiration))
+            keccak256(abi.encodePacked(uint(ActionId.RemoveValidator), validator, nonce, address(this), expiration, chainId))
         );
 
         verifySignatures(signatures, hash);
@@ -528,7 +533,7 @@ contract Bridge is ReentrancyGuard {
             "expired signatures"
         );
         bytes32 messageHash = getEthereumMessageHash(
-            keccak256(abi.encodePacked(uint(ActionId.SetFeeWallet), _feeTo, _feeAmount, expiration))
+            keccak256(abi.encodePacked(uint(ActionId.SetFeeWallet), _feeTo, _feeAmount, expiration, chainId))
         );
         verifySignatures(signatures, messageHash);
         feeTo = _feeTo;
@@ -606,7 +611,7 @@ contract Bridge is ReentrancyGuard {
         );
 
         bytes32 hash = getEthereumMessageHash(
-            keccak256(abi.encodePacked(uint(ActionId.SetPause), true, nonce, address(this), expiration))
+            keccak256(abi.encodePacked(uint(ActionId.SetPause), true, nonce, address(this), expiration, chainId))
         );
 
         verifySignatures(signatures, hash);
@@ -624,7 +629,7 @@ contract Bridge is ReentrancyGuard {
         );
     
         bytes32 hash = getEthereumMessageHash(
-            keccak256(abi.encodePacked(uint(ActionId.SetPause), false, nonce, address(this), expiration))
+            keccak256(abi.encodePacked(uint(ActionId.SetPause), false, nonce, address(this), expiration, chainId))
         );
 
         verifySignatures(signatures, hash);
