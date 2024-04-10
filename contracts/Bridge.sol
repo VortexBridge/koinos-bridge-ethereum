@@ -437,7 +437,7 @@ contract Bridge is ReentrancyGuard {
         internal
     {
         require(
-            signatures.length >= (validators.length * 2 + 2) / 3,
+            signatures.length >= (validators.length * 5 + 10) / 9,
             "quorum not met"
         );
 
