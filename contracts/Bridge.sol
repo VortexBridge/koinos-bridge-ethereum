@@ -161,7 +161,7 @@ contract Bridge is ReentrancyGuard {
 
             // charge fee to transfer
             address _feeTo = feeTo;
-            if(_feeTo != address(0)) {
+            if(_feeTo != address(0) && feeAmount > 0) {
                 uint256 fee = feeAmount * amount / 10000;
                 // transfer fee
                 SafeERC20.safeTransferFrom(
@@ -271,7 +271,7 @@ contract Bridge is ReentrancyGuard {
         } else {
             // charge fee to transfer
             address _feeTo = feeTo;
-            if(_feeTo != address(0)) {
+            if(_feeTo != address(0) && feeAmount > 0) {
                 uint256 fee = feeAmount * transferAmount / 10000;
                 // transfer fee
                 SafeERC20.safeTransfer(IERC20(token), _feeTo, fee);
