@@ -142,15 +142,6 @@ contract Bridge is ReentrancyGuard {
             "token is not supported"
         );
 
-        // query tokens decimals
-        (, bytes memory queriedDecimals) = token.staticcall(
-            abi.encodeWithSignature("decimals()")
-        );
-        uint8 decimals = abi.decode(queriedDecimals, (uint8));
-
-        // don't deposit dust that can not be bridged due to the decimal shift
-        amount = deNormalizeAmount(normalizeAmount(amount, decimals), decimals);
-
         if (isSupportedWrappedToken[token]) {
             SafeERC20.safeTransferFrom(
                 IERC20(token),
@@ -198,7 +189,13 @@ contract Bridge is ReentrancyGuard {
             amount = balanceAfter - balanceBefore;
         }
 
-        // normalize amount, we only want to handle 8 decimals maximum on Koinos
+        // query tokens decimals
+        (, bytes memory queriedDecimals) = token.staticcall(
+            abi.encodeWithSignature("decimals()")
+        );
+        uint8 decimals = abi.decode(queriedDecimals, (uint8));
+
+        // normalize amount, we only want to handle 8 decimals
         uint256 normalizedAmount = normalizeAmount(amount, decimals);
 
         require(
@@ -269,23 +266,22 @@ contract Bridge is ReentrancyGuard {
         );
         uint8 decimals = abi.decode(queriedDecimals, (uint8));
 
+        // denormalize amount, we only want to handle 8 decimals
+        uint256 transferAmount = deNormalizeAmount(value, decimals);
+
         // transfer bridged amount to recipient
-        if (isSupportedWrappedToken[token]) {
-            uint256 _value = value;
-            
+        if (isSupportedWrappedToken[token]) {            
             // transfer network fee to relayer
             uint256 feeRelayer = feeSupportedWrappedToken[token];
-            require( feeRelayer < _value, "insufficient amount");
+            require( feeRelayer < transferAmount, "insufficient amount");
             if(feeRelayer > 0) {
                 WrappedToken(token).mint(relayer, feeRelayer);
-                _value = _value - feeRelayer;
+                transferAmount = transferAmount - feeRelayer;
             }
             
             // mint wrapped asset
-            WrappedToken(token).mint(recipient, _value);
+            WrappedToken(token).mint(recipient, transferAmount);
         } else {
-            // adjust decimals  
-            uint256 transferAmount = deNormalizeAmount(value, decimals);
 
             if(token == WETHAddress) {
                 // withdraw ETH from contract
