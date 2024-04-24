@@ -608,6 +608,10 @@ contract Bridge is ReentrancyGuard {
             amount /= 10**(decimals - 8);
         }
 
+        if ( decimals < 8 ) {
+            amount *= 10**(8 - decimals);
+        }
+
         return amount;
     }
 
@@ -623,6 +627,10 @@ contract Bridge is ReentrancyGuard {
     {
         if (decimals > 8) {
             amount *= 10**(decimals - 8);
+        }
+
+        if (decimals < 8) {
+            amount /= 10**(8 - decimals);
         }
 
         return amount;
