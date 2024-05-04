@@ -1,55 +1,55 @@
-// npx hardhat run --network localhost scripts/deploy.js
-const hre = require('hardhat')
-const sigUtil = require('eth-sig-util')
-require('dotenv').config()
-const { ActionId } = require('./util')
+const ethers = require('ethers');
+const fs = require('fs');
 
-const TOKEN_ADDR = '0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6'
+const abi = JSON.parse(fs.readFileSync('./abi/Bridge.abi', 'utf8'));
+const { ActionId } = require('./util');
+require('dotenv').config();
 
-const nowPlus1Hr = Math.floor(new Date().getTime()) + 3600000
+const { 
+  BRIDGE_ADDR, 
+  RPC_PROVIDER, 
+  PRIVATE_KEY, 
+  TOKEN_ADDR 
+} = process.env
 
-const { BRIDGE_ADDR, VALIDATORS_PK } = process.env
+const VALIDATORS_PK = process.env.VALIDATORS_PK.split('|');
 
-const privateKeys = VALIDATORS_PK.split('|')
+const provider = new ethers.providers.JsonRpcProvider(RPC_PROVIDER);
+const signer = new ethers.Wallet(PRIVATE_KEY, provider);
+const contract = new ethers.Contract(BRIDGE_ADDR, abi, signer);
 
-const hashAndSign = async (...args) => {
-  // eslint-disable-next-line no-undef
-  const hash = await web3.utils.soliditySha3(...args)
+const nowPlus1Hr = Math.floor(new Date().getTime()) + 3600000;
+const fee = ethers.utils.parseUnits('0', 'ether');
+const chainId = 0;
 
-  const signatures = []
-  for (const i in privateKeys) {
-    const signature = await sigUtil.personalSign(hre.ethers.utils.arrayify(privateKeys[i]), {
-      data: hash
-    })
-    signatures.push(signature)
-  }
+async function hashAndSign(actionSupport, tokenAddress, fee, nonce, contractAddress, expiration, chainId) {
+    const types = ['uint256', 'address', 'uint256', 'uint256', 'address', 'uint256', 'uint32'];
+    const values = [actionSupport, tokenAddress, fee, nonce, contractAddress, expiration, chainId];
 
-  return signatures
+    const messageHash = ethers.utils.solidityKeccak256(types, values);
+
+    const signatures = [];
+    for (const privateKey of VALIDATORS_PK) {
+        const wallet = new ethers.Wallet(privateKey);
+        const signature = await wallet.signMessage(ethers.utils.arrayify(messageHash));
+        signatures.push(signature);
+    }
+
+    return signatures;
 }
 
-async function main () {
-  const [deployer] = await hre.ethers.getSigners()
+async function main() {
+    let nonce = Number((await contract.nonce()).toString());
 
-  const bridge = await hre.ethers.getContractFactory('Bridge')
-  const bridgeContract = bridge.attach(BRIDGE_ADDR)
+    const signatures = await hashAndSign(ActionId.AddSupportedToken, TOKEN_ADDR, fee, nonce, BRIDGE_ADDR, nowPlus1Hr, chainId);
+    console.log('Signatures:', signatures);
+    const tx = await contract.addSupportedToken(signatures, TOKEN_ADDR, fee, nowPlus1Hr);
+    await tx.wait();
 
-  const nonce = await bridgeContract.nonce()
-
-  const signatures = await hashAndSign(ActionId.AddSupportedToken, TOKEN_ADDR, nonce.toString(), bridgeContract.address, nowPlus1Hr)
-
-  console.log('signatures', signatures)
-
-  const tx = await bridgeContract.connect(deployer).addSupportedToken(signatures, TOKEN_ADDR, nowPlus1Hr)
-  await tx.wait()
-
-  console.log('token support added for', TOKEN_ADDR)
+    console.log('Wrapped token support added');
 }
 
-// We recommend this pattern to be able to use async/await everywhere
-// and properly handle errors.
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error)
-    process.exit(1)
-  })
+main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+});

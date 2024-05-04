@@ -19,7 +19,11 @@
     "deployGoerli": "npx hardhat run --network goerli scripts/deploy.js",
     "depositGoerli": "npx hardhat run --network goerli scripts/deposit-tokens.js",
     "deployWrappedTokenGoerli": "npx hardhat run --network goerli scripts/deploy-wrapped-token.js",
-    "addSupportedWrappedTokenGoerli": "npx hardhat run --network goerli scripts/add-supported-wrapped-token.js"
+    "deployWrappedTokenSepolia": "npx hardhat run --network sepolia scripts/deploy-wrapped-token.js",
+    "addSupportedWrappedTokenGoerli": "npx hardhat run --network goerli scripts/add-supported-wrapped-token.js",
+    "addSupportedWrappedTokenSepolia": "npx hardhat run --network sepolia scripts/add-supported-wrapped-token.js",
+    "addSupportedTokenSepolia": "npx hardhat run --network sepolia scripts/add-supported-token.js",
+    "addSupportedWrappedTokenHardhat": "npx hardhat run --network hardhat scripts/add-supported-wrapped-token.js"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.0",
