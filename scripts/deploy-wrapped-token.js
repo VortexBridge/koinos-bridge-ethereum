@@ -2,11 +2,12 @@
 const hre = require('hardhat')
 require('dotenv').config()
 
-const WRAPPED_TOKEN_NAME = 'Wrapped tKoin'
-const WRAPPED_TOKEN_SYMBOL = 'tKoin'
-const WRAPPED_TOKEN_DECIMAL = 8
-
-const { BRIDGE_ADDR } = process.env
+const { 
+  BRIDGE_ADDR, 
+  WRAPPED_TOKEN_NAME, 
+  WRAPPED_TOKEN_SYMBOL, 
+  WRAPPED_TOKEN_DECIMAL 
+} = process.env
 
 async function main () {
   const wrappedToken = await hre.ethers.getContractFactory('WrappedToken')
