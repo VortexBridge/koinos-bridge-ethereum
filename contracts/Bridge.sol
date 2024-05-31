@@ -13,6 +13,8 @@ contract Bridge is ReentrancyGuard {
         address from,
         address token,
         uint256 amount,
+        uint256 payment,
+        string relayer,
         string recipient,
         uint256 blocktime,
         uint32 chain
@@ -34,10 +36,12 @@ contract Bridge is ReentrancyGuard {
     event SupportedWrappedTokenAdded(address indexed token);
     event SupportedWrappedTokenSetFee(address indexed token);
     event SupportedWrappedTokenRemoved(address indexed token);
+    event SupportedWrappedTokenClaimFees(address indexed token);
 
     event SupportedTokenAdded(address indexed token);
     event SupportedTokenSetFee(address indexed token);
     event SupportedTokenRemoved(address indexed token);
+    event SupportedTokenClaimFees(address indexed token);
 
     enum ActionId {
         ReservedAction,
@@ -49,28 +53,33 @@ contract Bridge is ReentrancyGuard {
         RemoveSupportedWrappedToken,
         SetPause,
         CompleteTransfer,
-        SetFeeWallet,
         SetFeeSupportedToken,
-        SetFeeSupportedWrappedToken
+        SetFeeSupportedWrappedToken,
+        ClaimFeesSupportedToken,
+        ClaimFeesSupportedWrappedToken
     }
 
     uint32 public chainId;
     uint256 public nonce = 1;
-    address public feeTo;
-    uint256 public feeAmount;
+    mapping(bytes32 => bool) public isTransferCompleted;
 
+    // validators
     address[] public validators;
     mapping(address => bool) public isValidator;
     mapping(address => bool) hasValidatorAlreadySigned;
 
-    mapping(address => bool) public isSupportedWrappedToken;
-    mapping(address => uint256) public feeSupportedWrappedToken;
-    address[] public supportedWrappedTokens;
+    // suport tokens
+    address[] public supportedTokens;
     mapping(address => bool) public isSupportedToken;
     mapping(address => uint256) public feeSupportedToken;
-    address[] public supportedTokens;
+    mapping(address => uint256) public balanceSupportedToken;
 
-    mapping(bytes32 => bool) public isTransferCompleted;
+    // suport wrapped tokens
+    address[] public supportedWrappedTokens;
+    mapping(address => bool) public isSupportedWrappedToken;
+    mapping(address => uint256) public feeSupportedWrappedToken;
+    mapping(address => uint256) public balanceSupportedWrappedToken;
+
 
     event Pause();
     event Unpause();
@@ -103,7 +112,12 @@ contract Bridge is ReentrancyGuard {
         emit RequestNewSignaturesEvent(txId, block.timestamp * 1000);
     }
 
-    function wrapAndTransferETH(string memory recipient, uint32 toChain)
+    function wrapAndTransferETH(
+        uint256 payment,
+        string memory relayer,
+        string memory recipient,
+        uint32 toChain
+    )
         external
         payable
         whenNotPaused
@@ -111,12 +125,27 @@ contract Bridge is ReentrancyGuard {
     {
         uint256 amount = msg.value;
 
+        // add fee to balance to be claimed at some point in the future
+        if(feeSupportedToken[WETHAddress] > 0) {
+            require(
+                amount > feeSupportedToken[WETHAddress],
+                "amount must be greater than fee of bridge"
+            );
+            amount -= feeSupportedToken[WETHAddress];
+            balanceSupportedToken[WETHAddress] += feeSupportedToken[WETHAddress];
+        }
+
         // normalize amount, we only want to handle 8 decimals maximum on Koinos
         uint256 normalizedAmount = normalizeAmount(amount, 18);
+        uint256 normalizedPayment = normalizeAmount(payment, 18);
 
         require(
             normalizedAmount > 0,
             "normalizedAmount amount must be greater than 0"
+        );
+        require(
+            normalizedAmount > normalizedPayment,
+            "normalizedAmount amount must be greater than normalizedPayment"
         );
 
         // refund dust
@@ -128,20 +157,30 @@ contract Bridge is ReentrancyGuard {
         // deposit into WETH
         WETH(WETHAddress).deposit{value: amount - dust}();
 
-        emit TokensLockedEvent(msg.sender, WETHAddress, normalizedAmount, recipient, block.timestamp * 1000, toChain);
+        emit TokensLockedEvent(msg.sender, WETHAddress, normalizedAmount, normalizedPayment, relayer, recipient, block.timestamp * 1000, toChain);
     }
 
     function transferTokens(
         address token,
         uint256 amount,
-        uint32 toChain,
-        string memory recipient
+        uint256 payment,
+        string memory relayer,
+        string memory recipient,
+        uint32 toChain
     ) external whenNotPaused nonReentrant {
         require(
             isSupportedWrappedToken[token] || isSupportedToken[token],
             "token is not supported"
         );
 
+        // query tokens decimals
+        (, bytes memory queriedDecimals) = token.staticcall(abi.encodeWithSignature("decimals()"));
+        uint8 decimals = abi.decode(queriedDecimals, (uint8));
+
+        // don't deposit dust that can not be bridged due to the decimal shift
+        amount = deNormalizeAmount(normalizeAmount(amount, decimals), decimals);
+
+        // init process
         if (isSupportedWrappedToken[token]) {
             SafeERC20.safeTransferFrom(
                 IERC20(token),
@@ -149,27 +188,23 @@ contract Bridge is ReentrancyGuard {
                 address(this),
                 amount
             );
+
+            // add fee to balance to be claimed at some point in the future
+            if(feeSupportedWrappedToken[token] > 0) {
+                require(
+                    amount > feeSupportedWrappedToken[token],
+                    "amount must be greater than fee of bridge"
+                );
+                amount -= feeSupportedWrappedToken[token];
+                balanceSupportedWrappedToken[token] += feeSupportedWrappedToken[token];
+            }
+
+            // burn tokens after update amount
             WrappedToken(token).burn(address(this), amount);
         } else {
             // query own token balance before transfer
-            (, bytes memory queriedBalanceBefore) = token.staticcall(
-                abi.encodeWithSelector(IERC20.balanceOf.selector, address(this))
-            );
+            (, bytes memory queriedBalanceBefore) = token.staticcall(abi.encodeWithSelector(IERC20.balanceOf.selector, address(this)));
             uint256 balanceBefore = abi.decode(queriedBalanceBefore, (uint256));
-
-            // charge fee to transfer
-            address _feeTo = feeTo;
-            if(_feeTo != address(0) && feeAmount > 0) {
-                uint256 fee = feeAmount * amount / 10000;
-                // transfer fee
-                SafeERC20.safeTransferFrom(
-                    IERC20(token),
-                    msg.sender,
-                    _feeTo,
-                    fee
-                );
-                amount = amount - fee;
-            }
 
             // transfer tokens
             SafeERC20.safeTransferFrom(
@@ -180,30 +215,37 @@ contract Bridge is ReentrancyGuard {
             );
 
             // query own token balance after transfer
-            (, bytes memory queriedBalanceAfter) = token.staticcall(
-                abi.encodeWithSelector(IERC20.balanceOf.selector, address(this))
-            );
+            (, bytes memory queriedBalanceAfter) = token.staticcall(abi.encodeWithSelector(IERC20.balanceOf.selector, address(this)));
             uint256 balanceAfter = abi.decode(queriedBalanceAfter, (uint256));
 
             // correct amount for potential transfer fees
             amount = balanceAfter - balanceBefore;
+
+            // add fee to balance to be claimed at some point in the future
+            if(feeSupportedToken[token] > 0) {
+                require(
+                    amount > feeSupportedToken[token],
+                    "amount must be greater than fee of bridge"
+                );
+                amount -= feeSupportedToken[token];
+                balanceSupportedToken[token] += feeSupportedToken[token];
+            }
         }
 
-        // query tokens decimals
-        (, bytes memory queriedDecimals) = token.staticcall(
-            abi.encodeWithSignature("decimals()")
-        );
-        uint8 decimals = abi.decode(queriedDecimals, (uint8));
-
-        // normalize amount, we only want to handle 8 decimals
+        // normalize amounts, we only want to handle 8 decimals
         uint256 normalizedAmount = normalizeAmount(amount, decimals);
+        uint256 normalizedPayment = normalizeAmount(payment, decimals);
 
         require(
             normalizedAmount > 0,
             "normalizedAmount amount must be greater than 0"
         );
+        require(
+            normalizedAmount > normalizedPayment,
+            "normalizedAmount amount must be greater than normalizedPayment"
+        );
 
-        emit TokensLockedEvent(msg.sender, token, normalizedAmount, recipient, block.timestamp * 1000, toChain);
+        emit TokensLockedEvent(msg.sender, token, normalizedAmount, normalizedPayment, relayer, recipient, block.timestamp * 1000, toChain);
     }
 
     function completeTransfer(
@@ -213,6 +255,7 @@ contract Bridge is ReentrancyGuard {
         address relayer,
         address recipient,
         uint256 value,
+        uint256 payment,
         bytes[] memory signatures,
         uint expiration
     ) external whenNotPaused nonReentrant {
@@ -226,6 +269,11 @@ contract Bridge is ReentrancyGuard {
             "token is not supported"
         );
 
+        require(
+            msg.sender == relayer || msg.sender == recipient,
+            "tokens can only be claimed by the recipient or relayer"
+        );
+
         bytes32 messageHash = getEthereumMessageHash(
             keccak256(
                 abi.encodePacked(
@@ -233,8 +281,10 @@ contract Bridge is ReentrancyGuard {
                     txId,
                     operationId,
                     token,
+                    relayer,
                     recipient,
                     value,
+                    payment,
                     address(this),
                     expiration,
                     chainId
@@ -261,69 +311,48 @@ contract Bridge is ReentrancyGuard {
         verifySignatures(signatures, messageHash);
 
         // query decimals
-        (, bytes memory queriedDecimals) = token.staticcall(
-            abi.encodeWithSignature("decimals()")
-        );
+        (, bytes memory queriedDecimals) = token.staticcall(abi.encodeWithSignature("decimals()"));
         uint8 decimals = abi.decode(queriedDecimals, (uint8));
 
         // denormalize amount, we only want to handle 8 decimals
         uint256 transferAmount = deNormalizeAmount(value, decimals);
 
         // transfer bridged amount to recipient
-        if (isSupportedWrappedToken[token]) {            
-            // transfer network fee to relayer
-            uint256 feeRelayer = feeSupportedWrappedToken[token];
-            require( feeRelayer < transferAmount, "insufficient amount");
-            if(feeRelayer > 0) {
-                WrappedToken(token).mint(relayer, feeRelayer);
-                transferAmount = transferAmount - feeRelayer;
-            }
-            
+        if (isSupportedWrappedToken[token]) {
+
             // mint wrapped asset
-            WrappedToken(token).mint(recipient, transferAmount);
+            WrappedToken(token).mint(address(this), transferAmount);
+
+            // transfer asset to relayer
+            if(msg.sender == relayer && payment > 0) {
+                SafeERC20.safeTransfer(IERC20(token), relayer, payment);
+                transferAmount -= payment;
+            }
+
+            // transfer asset to user
+            SafeERC20.safeTransfer(IERC20(token), recipient, transferAmount);
         } else {
 
             if(token == WETHAddress) {
                 // withdraw ETH from contract
                 WETH(WETHAddress).withdraw(transferAmount);
 
-                // transfer network fee to relayer
-                uint256 feeRelayer = feeSupportedToken[token];
-                require( feeRelayer < transferAmount, "insufficient amount");
-                if(feeRelayer > 0) {
-                    safeTransferETH(relayer, feeRelayer);
-                    transferAmount = transferAmount - feeRelayer;
+                // transfer ETH to relayer
+                if(msg.sender == relayer && payment > 0) {
+                    safeTransferETH(recipient, payment);
+                    transferAmount -= payment;
                 }
 
-                // charge fee to transfer
-                address _feeTo = feeTo;
-                if(_feeTo != address(0) && feeAmount > 0) {
-                    uint256 fee = feeAmount * transferAmount / 10000;
-                    // transfer fee
-                    safeTransferETH(_feeTo, fee);
-                    transferAmount = transferAmount - fee;
-                }
-
-                // transfer ETH
+                // transfer ETH to user
                 safeTransferETH(recipient, transferAmount);
             } else {
-                // transfer network fee to relayer
-                uint256 feeRelayer = feeSupportedToken[token];
-                require( feeRelayer < transferAmount, "insufficient amount");
-                if(feeRelayer > 0) {
-                    SafeERC20.safeTransfer(IERC20(token), relayer, feeRelayer);
-                    transferAmount = transferAmount - feeRelayer;
+                // transfer tokens to relayer
+                if(msg.sender == relayer && payment > 0) {
+                    SafeERC20.safeTransfer(IERC20(token), relayer, payment);
+                    transferAmount -= payment;
                 }
 
-                // charge fee to transfer
-                address _feeTo = feeTo;
-                if(_feeTo != address(0) && feeAmount > 0) {
-                    uint256 fee = feeAmount * transferAmount / 10000;
-                    // transfer fee
-                    SafeERC20.safeTransfer(IERC20(token), _feeTo, fee);
-                    transferAmount = transferAmount - fee;
-                }
-                // transfer tokens
+                // transfer tokens to user
                 SafeERC20.safeTransfer(IERC20(token), recipient, transferAmount);
             }
         }
@@ -525,6 +554,52 @@ contract Bridge is ReentrancyGuard {
         emit ValidatorRemoved(validator);
     }
 
+    function claimFeeTokens(bytes[] memory signatures, address wallet, uint expiration) external {
+        require(
+            expiration >= block.timestamp * 1000,
+            "expired signatures"
+        );
+
+        // verify signatures
+        bytes32 hash = getEthereumMessageHash(
+            keccak256(abi.encodePacked(uint(ActionId.ClaimFeesSupportedToken), wallet, nonce, address(this), expiration, chainId))
+        );
+        verifySignatures(signatures, hash);
+        claimFees(supportedTokens, wallet, false);
+        nonce += 1;
+    }
+
+    function claimFeeWrappTokens(bytes[] memory signatures, address wallet, uint expiration) external {
+        require(
+            expiration >= block.timestamp * 1000,
+            "expired signatures"
+        );
+
+        // verify signatures
+        bytes32 hash = getEthereumMessageHash(
+            keccak256(abi.encodePacked(uint(ActionId.ClaimFeesSupportedWrappedToken), wallet, nonce, address(this), expiration, chainId))
+        );
+        verifySignatures(signatures, hash);
+        claimFees(supportedWrappedTokens, wallet, true);
+        nonce += 1;
+    }
+
+    function claimFees(address[] tokens, address wallet, bool isSupportedWrappedToken) internal {
+        for (uint256 i = 0; i < tokens.length; i++) {
+            address token = tokens[i];
+            uint256 amount = isSupportedWrappedToken ? balanceSupportedWrappedToken[token] : balanceSupportedToken[token];
+            SafeERC20.safeTransfer(IERC20(token), wallet, amount);
+            if(isSupportedWrappedToken) {
+                balanceSupportedWrappedToken[token] = 0;
+                emit SupportedWrappedTokenClaimFees(token);
+            } else {
+                balanceSupportedToken[token] = 0;
+                emit SupportedTokenClaimFees(token);
+            }
+        }
+    }
+
+
     function verifySignatures(bytes[] memory signatures, bytes32 hash)
         internal
     {
@@ -632,19 +707,6 @@ contract Bridge is ReentrancyGuard {
         return amount;
     }
 
-    function setFeeTo(bytes[] memory signatures, address _feeTo, uint256 _feeAmount, uint expiration) external {
-        require(
-            expiration >= block.timestamp * 1000,
-            "expired signatures"
-        );
-        bytes32 messageHash = getEthereumMessageHash(
-            keccak256(abi.encodePacked(uint(ActionId.SetFeeWallet), _feeTo, _feeAmount, expiration, chainId))
-        );
-        verifySignatures(signatures, messageHash);
-        feeTo = _feeTo;
-        feeAmount = _feeAmount; // 10000 == 100%
-    }
-
     function removeSupportedTokenByIndex(uint256 index) internal {
         require(index < supportedTokens.length, "index out of bound");
 
@@ -682,14 +744,6 @@ contract Bridge is ReentrancyGuard {
 
     function getValidatorsLength() public view returns (uint256) {
         return validators.length;
-    }
-
-    function getFeeAmount() public view returns (uint256) {
-        return feeAmount;
-    }
-
-    function getFeeAddress() public view returns (address) {
-        return feeTo;
     }
 
 
