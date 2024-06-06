@@ -117,6 +117,7 @@ contract Bridge is ReentrancyGuard {
         uint256 payment,
         string memory relayer,
         string memory recipient,
+        string memory metadata,
         uint32 toChain
     )
         external
@@ -158,7 +159,7 @@ contract Bridge is ReentrancyGuard {
         // deposit into WETH
         WETH(WETHAddress).deposit{value: amount - dust}();
 
-        emit TokensLockedEvent(msg.sender, WETHAddress, normalizedAmount, normalizedPayment, relayer, recipient, block.timestamp * 1000, toChain);
+        emit TokensLockedEvent(msg.sender, WETHAddress, normalizedAmount, normalizedPayment, relayer, recipient, metadata, block.timestamp * 1000, toChain);
     }
 
     function transferTokens(
