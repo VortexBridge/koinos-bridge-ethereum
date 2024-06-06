@@ -554,7 +554,7 @@ contract Bridge is ReentrancyGuard {
         emit ValidatorRemoved(validator);
     }
 
-    function claimFeeTokens(bytes[] memory signatures, address wallet, uint expiration) external {
+    function claimFeeTokens(bytes[] memory signatures, address token, address wallet, uint expiration) external {
         require(
             expiration >= block.timestamp * 1000,
             "expired signatures"
@@ -562,14 +562,18 @@ contract Bridge is ReentrancyGuard {
 
         // verify signatures
         bytes32 hash = getEthereumMessageHash(
-            keccak256(abi.encodePacked(uint(ActionId.ClaimFeesSupportedToken), wallet, nonce, address(this), expiration, chainId))
+            keccak256(abi.encodePacked(uint(ActionId.ClaimFeesSupportedToken), token, wallet, nonce, address(this), expiration, chainId))
         );
         verifySignatures(signatures, hash);
-        claimFees(supportedTokens, wallet, false);
+        uint256 balance = balanceSupportedToken[token];
+        require( balance > 0, "balance must be greater than 0");
+        SafeERC20.safeTransfer(IERC20(token), wallet, balance);
+        balanceSupportedToken[token] = 0;
         nonce += 1;
+        emit SupportedTokenClaimFees(token);
     }
 
-    function claimFeeWrappTokens(bytes[] memory signatures, address wallet, uint expiration) external {
+    function claimFeeWrappTokens(bytes[] memory signatures, address token, address wallet, uint expiration) external {
         require(
             expiration >= block.timestamp * 1000,
             "expired signatures"
@@ -577,26 +581,15 @@ contract Bridge is ReentrancyGuard {
 
         // verify signatures
         bytes32 hash = getEthereumMessageHash(
-            keccak256(abi.encodePacked(uint(ActionId.ClaimFeesSupportedWrappedToken), wallet, nonce, address(this), expiration, chainId))
+            keccak256(abi.encodePacked(uint(ActionId.ClaimFeesSupportedWrappedToken), token, wallet, nonce, address(this), expiration, chainId))
         );
         verifySignatures(signatures, hash);
-        claimFees(supportedWrappedTokens, wallet, true);
+        uint256 balance = balanceSupportedWrappedToken[token];
+        require( balance > 0, "balance must be greater than 0");
+        SafeERC20.safeTransfer(IERC20(token), wallet, balance);
+        balanceSupportedWrappedToken[token] = 0;
         nonce += 1;
-    }
-
-    function claimFees(address[] tokens, address wallet, bool isSupportedWrappedToken) internal {
-        for (uint256 i = 0; i < tokens.length; i++) {
-            address token = tokens[i];
-            uint256 amount = isSupportedWrappedToken ? balanceSupportedWrappedToken[token] : balanceSupportedToken[token];
-            SafeERC20.safeTransfer(IERC20(token), wallet, amount);
-            if(isSupportedWrappedToken) {
-                balanceSupportedWrappedToken[token] = 0;
-                emit SupportedWrappedTokenClaimFees(token);
-            } else {
-                balanceSupportedToken[token] = 0;
-                emit SupportedTokenClaimFees(token);
-            }
-        }
+        emit SupportedWrappedTokenClaimFees(token);
     }
 
 
