@@ -16,6 +16,7 @@ contract Bridge is ReentrancyGuard {
         uint256 payment,
         string relayer,
         string recipient,
+        string metadata,
         uint256 blocktime,
         uint32 chain
     );
@@ -116,6 +117,7 @@ contract Bridge is ReentrancyGuard {
         uint256 payment,
         string memory relayer,
         string memory recipient,
+        string memory metadata,
         uint32 toChain
     )
         external
@@ -157,7 +159,7 @@ contract Bridge is ReentrancyGuard {
         // deposit into WETH
         WETH(WETHAddress).deposit{value: amount - dust}();
 
-        emit TokensLockedEvent(msg.sender, WETHAddress, normalizedAmount, normalizedPayment, relayer, recipient, block.timestamp * 1000, toChain);
+        emit TokensLockedEvent(msg.sender, WETHAddress, normalizedAmount, normalizedPayment, relayer, recipient, metadata, block.timestamp * 1000, toChain);
     }
 
     function transferTokens(
@@ -166,6 +168,7 @@ contract Bridge is ReentrancyGuard {
         uint256 payment,
         string memory relayer,
         string memory recipient,
+        string memory metadata,
         uint32 toChain
     ) external whenNotPaused nonReentrant {
         require(
@@ -245,7 +248,7 @@ contract Bridge is ReentrancyGuard {
             "normalizedAmount amount must be greater than normalizedPayment"
         );
 
-        emit TokensLockedEvent(msg.sender, token, normalizedAmount, normalizedPayment, relayer, recipient, block.timestamp * 1000, toChain);
+        emit TokensLockedEvent(msg.sender, token, normalizedAmount, normalizedPayment, relayer, recipient, metadata, block.timestamp * 1000, toChain);
     }
 
     function completeTransfer(
@@ -257,7 +260,8 @@ contract Bridge is ReentrancyGuard {
         uint256 value,
         uint256 payment,
         bytes[] memory signatures,
-        uint expiration
+        string memory metadata,
+        uint expiration,
     ) external whenNotPaused nonReentrant {
         require(
             expiration >= block.timestamp * 1000,
@@ -285,6 +289,7 @@ contract Bridge is ReentrancyGuard {
                     recipient,
                     value,
                     payment,
+                    metadata,
                     address(this),
                     expiration,
                     chainId
