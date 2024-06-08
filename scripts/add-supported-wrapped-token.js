@@ -19,7 +19,7 @@ const contract = new ethers.Contract(BRIDGE_ADDR, abi, signer);
 
 const nowPlus1Hr = Math.floor(new Date().getTime()) + 3600000;
 const fee = ethers.utils.parseUnits('0', 'ether');
-const chainId = 0;
+const chainId = 100;
 
 async function hashAndSign(actionSupport, tokenAddress, fee, nonce, contractAddress, expiration, chainId) {
     const types = ['uint256', 'address', 'uint256', 'uint256', 'address', 'uint256', 'uint32'];
