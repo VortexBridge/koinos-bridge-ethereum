@@ -8,14 +8,14 @@ on:
 
 jobs:
   build:
-
+    environment: CI
     runs-on: ${{ matrix.platform }}
     name: "${{ matrix.platform }} ${{ matrix.nodeversion }}"
 
     strategy:
       matrix:
         platform: [ubuntu-latest]
-        node-version: [16.x]
+        node-version: [18.x]
 
     steps:
       - uses: actions/checkout@v2
@@ -26,4 +26,6 @@ jobs:
       - name: Install dependencies
         run: yarn --frozen-lockfile
       - name: Run test
+        env:
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
         run: yarn test

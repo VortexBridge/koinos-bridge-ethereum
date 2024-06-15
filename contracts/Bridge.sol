@@ -1,5 +1,5 @@
 // contracts/Bridge.sol
-// SPDX-License-Identifier: Apache 2
+// SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.25;
 
@@ -261,7 +261,7 @@ contract Bridge is ReentrancyGuard {
         uint256 payment,
         bytes[] memory signatures,
         string memory metadata,
-        uint expiration,
+        uint expiration
     ) external whenNotPaused nonReentrant {
         require(
             expiration >= block.timestamp * 1000,

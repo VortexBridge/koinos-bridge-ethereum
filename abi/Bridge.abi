@@ -111,6 +111,19 @@
 				"type": "address"
 			}
 		],
+		"name": "SupportedTokenClaimFees",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "token",
+				"type": "address"
+			}
+		],
 		"name": "SupportedTokenRemoved",
 		"type": "event"
 	},
@@ -138,6 +151,19 @@
 			}
 		],
 		"name": "SupportedWrappedTokenAdded",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "token",
+				"type": "address"
+			}
+		],
+		"name": "SupportedWrappedTokenClaimFees",
 		"type": "event"
 	},
 	{
@@ -189,8 +215,26 @@
 			},
 			{
 				"indexed": false,
+				"internalType": "uint256",
+				"name": "payment",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "string",
+				"name": "relayer",
+				"type": "string"
+			},
+			{
+				"indexed": false,
 				"internalType": "string",
 				"name": "recipient",
+				"type": "string"
+			},
+			{
+				"indexed": false,
+				"internalType": "string",
+				"name": "metadata",
 				"type": "string"
 			},
 			{
@@ -370,6 +414,44 @@
 		"type": "function"
 	},
 	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "balanceSupportedToken",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "balanceSupportedWrappedToken",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
 		"inputs": [],
 		"name": "chainId",
 		"outputs": [
@@ -380,6 +462,62 @@
 			}
 		],
 		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes[]",
+				"name": "signatures",
+				"type": "bytes[]"
+			},
+			{
+				"internalType": "address",
+				"name": "token",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "wallet",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "expiration",
+				"type": "uint256"
+			}
+		],
+		"name": "claimFeeTokens",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes[]",
+				"name": "signatures",
+				"type": "bytes[]"
+			},
+			{
+				"internalType": "address",
+				"name": "token",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "wallet",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "expiration",
+				"type": "uint256"
+			}
+		],
+		"name": "claimFeeWrappTokens",
+		"outputs": [],
+		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{
@@ -415,9 +553,19 @@
 				"type": "uint256"
 			},
 			{
+				"internalType": "uint256",
+				"name": "payment",
+				"type": "uint256"
+			},
+			{
 				"internalType": "bytes[]",
 				"name": "signatures",
 				"type": "bytes[]"
+			},
+			{
+				"internalType": "string",
+				"name": "metadata",
+				"type": "string"
 			},
 			{
 				"internalType": "uint256",
@@ -428,19 +576,6 @@
 		"name": "completeTransfer",
 		"outputs": [],
 		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "feeAmount",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -471,45 +606,6 @@
 			}
 		],
 		"name": "feeSupportedWrappedToken",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "feeTo",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "getFeeAddress",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "getFeeAmount",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -807,34 +903,6 @@
 	{
 		"inputs": [
 			{
-				"internalType": "bytes[]",
-				"name": "signatures",
-				"type": "bytes[]"
-			},
-			{
-				"internalType": "address",
-				"name": "_feeTo",
-				"type": "address"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_feeAmount",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "expiration",
-				"type": "uint256"
-			}
-		],
-		"name": "setFeeTo",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
 				"internalType": "uint256",
 				"name": "",
 				"type": "uint256"
@@ -883,14 +951,29 @@
 				"type": "uint256"
 			},
 			{
-				"internalType": "uint32",
-				"name": "toChain",
-				"type": "uint32"
+				"internalType": "uint256",
+				"name": "payment",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "relayer",
+				"type": "string"
 			},
 			{
 				"internalType": "string",
 				"name": "recipient",
 				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "metadata",
+				"type": "string"
+			},
+			{
+				"internalType": "uint32",
+				"name": "toChain",
+				"type": "uint32"
 			}
 		],
 		"name": "transferTokens",
@@ -938,8 +1021,23 @@
 	{
 		"inputs": [
 			{
+				"internalType": "uint256",
+				"name": "payment",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "relayer",
+				"type": "string"
+			},
+			{
 				"internalType": "string",
 				"name": "recipient",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "metadata",
 				"type": "string"
 			},
 			{
