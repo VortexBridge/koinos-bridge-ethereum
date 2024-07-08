@@ -261,7 +261,7 @@ contract Bridge is ReentrancyGuard {
         uint256 payment,
         bytes[] memory signatures,
         string memory metadata,
-        uint expiration,
+        uint expiration
     ) external whenNotPaused nonReentrant {
         require(
             expiration >= block.timestamp * 1000,
@@ -344,7 +344,7 @@ contract Bridge is ReentrancyGuard {
 
                 // transfer ETH to relayer
                 if(msg.sender == relayer && payment > 0) {
-                    safeTransferETH(recipient, payment);
+                    safeTransferETH(relayer, payment);
                     transferAmount -= payment;
                 }
 
@@ -798,11 +798,17 @@ contract Bridge is ReentrancyGuard {
         emit Unpause();
     }
 
-    fallback() external payable {
-        revert("please use wrapAndTransferETH to transfer ETH to Koinos");
+    /**
+    * @dev Only WETH contract is allowed to transfer ETH here. Prevent other addresses to send Ether to this contract.
+    */
+    receive() external payable {
+        require(msg.sender == WETHAddress, "Receive not allowed");
     }
 
-    receive() external payable {
+    /**
+    * @dev Revert fallback calls
+    */
+    fallback() external payable {
         revert("please use wrapAndTransferETH to transfer ETH to Koinos");
     }
 }
