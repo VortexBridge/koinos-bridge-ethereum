@@ -10,26 +10,30 @@ contract WrappedToken is Context {
     event Approval(address indexed owner, address indexed spender, uint256 value);
 
     address public _owner;
+    address public _bridge;
     bool public _initialized;
 
     function initialize(
         string memory name_,
         string memory symbol_,
         uint8 decimals_,
+        address bridge_,
         address owner_
     ) public initializer {
         _name = name_;
         _symbol = symbol_;
         _decimals = decimals_;
 
+        // address of the bridge contract;
+        _bridge = bridge_;
         _owner = owner_;
     }
 
-    function mint(address account, uint256 amount) public onlyOwner {
+    function mint(address account, uint256 amount) public onlyBridge {
         _mint(account, amount);
     }
 
-    function burn(address account, uint256 amount) public onlyOwner {
+    function burn(address account, uint256 amount) public onlyBridge {
         _burn(account, amount);
     }
 
@@ -335,8 +339,21 @@ contract WrappedToken is Context {
         _decimals = decimals_;
     }
 
-     modifier onlyOwner() {
-        require(owner() == _msgSender(), "caller is not the owner");
+    function setBridge(address bridge_) public onlyOwner {
+        _bridge = bridge_;
+    }
+
+    function setOwner(address newOwner) public onlyOwner {
+        _owner = newOwner;
+    }
+
+    modifier onlyBridge() {
+        require(_bridge == _msgSender(), "caller is not the bridge");
+        _;
+    }
+
+    modifier onlyOwner() {
+        require(_owner == _msgSender(), "caller is not the owner");
         _;
     }
 
@@ -347,4 +364,6 @@ contract WrappedToken is Context {
 
         _;
     }
+
+
 }
